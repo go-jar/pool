@@ -14,6 +14,7 @@ type Config struct {
 	MaxIdleTime       time.Duration
 	KeepAliveInterval time.Duration
 
+	NewConnFunc   func() (IConn, error)
 	KeepAliveFunc func(conn IConn) error
 }
 
@@ -22,22 +23,17 @@ type poolItem struct {
 	accessTime time.Time
 }
 
-type NewConnFunc func() (IConn, error)
-
 type Pool struct {
 	config *Config
 	conns  chan *poolItem
-
-	NewItemFunc NewConnFunc
 }
 
 var ErrPoolIsFull = errors.New("pool is full")
 
-func NewPool(config *Config, newConnFunc NewConnFunc) *Pool {
+func NewPool(config *Config) *Pool {
 	p := &Pool{
 		config:      config,
 		conns:       make(chan *poolItem, config.MaxConns),
-		NewItemFunc: newConnFunc,
 	}
 
 	if config.KeepAliveInterval > 0 && config.KeepAliveFunc != nil {
@@ -55,7 +51,7 @@ func (p *Pool) Get() (IConn, error) {
 		}
 		pi.conn.Free()
 	}
-	return p.NewItemFunc()
+	return p.config.NewConnFunc()
 }
 
 func (p *Pool) Put(conn IConn) error {
